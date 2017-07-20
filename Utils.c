@@ -132,9 +132,9 @@ void sendPacket(char *destMac, char *interface, int bufSize, char *packet){
 
 	/* Fill data */
 	char type = packet[0];
-	int size = typeSize(type);
-	memcpy(&sendbuf[tx_len], packet, size);
-//	for(ctr = 0; ctr < size; ctr++) sendbuf[tx_len++] = packet[ctr];
+	int ctr, size = typeSize(type);
+	//memcpy(&sendbuf[tx_len], packet, size);
+	for(ctr = 0; ctr < size; ctr++) sendbuf[tx_len++] = packet[ctr];
 
 	/* Index of the network device */
 	socket_address.sll_ifindex = if_idx.ifr_ifindex;

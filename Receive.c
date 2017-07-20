@@ -153,7 +153,12 @@ repeat:
 		DQU myDQU = (DQU) toStruct(xx);
 		printf("\nDQU - [%d][%s][%s][%s][%s]", myDQU->type, myDQU->reqName, myDQU->reqSurname, myDQU->targetName, myDQU->targetSurname);
 		fflush(stdout);
+		char name[10] = "ugur";
+		char surname[10] = "ilter";
+		char *response = (char *) createH_RESP(name, surname, myDQU->targetName, myDQU->targetSurname);
+		sendPacket(targetAddr, DEFAULT_IF, 1024, response);
 		free(myDQU);
+		free(response);
 	}
 	else if(type == HELLO_RESPONSE){
 		H_RESP myH_RESP = (H_RESP) toStruct(xx);
