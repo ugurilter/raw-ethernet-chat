@@ -18,3 +18,13 @@
 |4|CHAT|[type][length][pid][msg]|[4][13][0][Hello World !]|MSG to 'X'|
 |5|CHAT_ACK|[type][pid]|[5][0]|ACK from 'X'|
 |6|EXIT|[type][name][sname]|[6][ugur][ilter]|I'm out, peace !|
+
+## Usage
+
+1. Open a terminal (CTRL + ALT + T),
+2. Change working directory,
+```
+make
+sudo ./chatApp
+```
+3. Start messaging.
