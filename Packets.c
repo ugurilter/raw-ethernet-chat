@@ -3,106 +3,60 @@
 #include <string.h>
 #include "Packets.h"
 
-DQB createDQB(char *name, char *surname){
-	DQB dummy = (DQB) malloc (sizeof(DQB_t));
+DQB createDQB(char *name, char *surname) {
+	DQB dummy = (DQB) malloc(sizeof(DQB_t));
+	memset(dummy, 0, sizeof(DQB_t));
 	dummy->type = (char) QUERY_BROADCAST;
-	strcpy(dummy->reqName, name);
-	strcpy(dummy->reqSurname, surname);
+	memcpy(dummy->reqName, name, sizeof(dummy->reqName));
+	memcpy(dummy->reqSurname, surname, sizeof(dummy->reqSurname));
 	return dummy;
 }
 
-DQU createDQU(char *reqName, char *reqSurname, char *targetName, char *targetSurname){
-	DQU dummy = (DQU) malloc (sizeof(DQU_t));
+DQU createDQU(char *reqName, char *reqSurname, char *targetName, char *targetSurname) {
+	DQU dummy = (DQU) malloc(sizeof(DQU_t));
+	memset(dummy, 0, sizeof(DQU_t));
 	dummy->type = (char) QUERY_UNICAST;
-	strcpy(dummy->reqName, reqName);
-	strcpy(dummy->reqSurname, reqSurname);
-	strcpy(dummy->targetName, targetName);
-	strcpy(dummy->targetSurname, targetSurname);
+	memcpy(dummy->reqName, reqName, sizeof(dummy->reqName));
+	memcpy(dummy->reqSurname, reqSurname, sizeof(dummy->reqSurname));
+	memcpy(dummy->targetName, targetName, sizeof(dummy->targetName));
+	memcpy(dummy->targetSurname, targetSurname, sizeof(dummy->targetSurname));
 	return dummy;
 }
 
-H_RESP createH_RESP(char *respName, char *respSurname, char *qryName, char *qrySurname){
-	H_RESP dummy = (H_RESP) malloc (sizeof(H_RESP_t));
+H_RESP createH_RESP(char *respName, char *respSurname, char *qryName, char *qrySurname) {
+	H_RESP dummy = (H_RESP) malloc(sizeof(H_RESP_t));
+	memset(dummy, 0, sizeof(H_RESP_t));
 	dummy->type = (char) HELLO_RESPONSE;
-	strcpy(dummy->respName, respName);
-	strcpy(dummy->respSurname, respSurname);
-	strcpy(dummy->qryName, qryName);
-	strcpy(dummy->qrySurname, qrySurname);
+	memcpy(dummy->respName, respName, sizeof(dummy->respName));
+	memcpy(dummy->respSurname, respSurname, sizeof(dummy->respSurname));
+	memcpy(dummy->qryName, qryName, sizeof(dummy->qryName));
+	memcpy(dummy->qrySurname, qrySurname, sizeof(dummy->qrySurname));
 	return dummy;
 }
 
-CHAT_MSG createCHAT_MSG(short len, char packetId, char *msg){
-	CHAT_MSG dummy = (CHAT_MSG) malloc (sizeof(CHAT_MSG_t));
+CHAT_MSG createCHAT_MSG(short len, char packetId, char *msg) {
+	CHAT_MSG dummy = (CHAT_MSG) malloc(sizeof(CHAT_MSG_t));
+	memset(dummy, 0, sizeof(CHAT_MSG_t));
 	dummy->type = (char) CHAT;
 	dummy->len = (short) len;
 	dummy->packetId = packetId;
-	strcpy(dummy->message, msg);
+	memcpy(dummy->message, msg, sizeof(dummy->message));
 	return dummy;
 }
 
-CHAT_MSG_ACK createCHAT_MSG_ACK(char packetId){
-	CHAT_MSG_ACK dummy = (CHAT_MSG_ACK) malloc (sizeof(CHAT_MSG_ACK_t));
+CHAT_MSG_ACK createCHAT_MSG_ACK(char packetId) {
+	CHAT_MSG_ACK dummy = (CHAT_MSG_ACK) malloc(sizeof(CHAT_MSG_ACK_t));
+	memset(dummy, 0, sizeof(CHAT_MSG_ACK_t));
 	dummy->type = (char) CHAT_ACK;
 	dummy->packetId = packetId;
 	return dummy;
 }
 
-EXIT createEXIT(char *name, char *surname){
-	EXIT dummy = (EXIT) malloc (sizeof(EXIT_t));
+EXIT createEXIT(char *name, char *surname) {
+	EXIT dummy = (EXIT) malloc(sizeof(EXIT_t));
+	memset(dummy, 0, sizeof(EXIT_t));
 	dummy->type = (char) EXITING;
-	strcpy(dummy->name, name);
-	strcpy(dummy->surname, surname);
-	return dummy;
-}
-
-DQB init_dummy_DQB(){
-	DQB dummy = (DQB) malloc (sizeof(DQB_t));
-	dummy->type = (char) QUERY_BROADCAST;
-	strcpy(dummy->reqName, "Ugur");
-	strcpy(dummy->reqSurname, "Ilter");
-	return dummy;
-}
-
-DQU init_dummy_DQU(){
-	DQU dummy = (DQU) malloc (sizeof(DQU_t));
-	dummy->type = (char) QUERY_UNICAST;
-	strcpy(dummy->reqName, "Pelin");
-	strcpy(dummy->reqSurname, "Fidangul");
-	strcpy(dummy->targetName, "Ugur");
-	strcpy(dummy->targetSurname, "Ilter");
-	return dummy;
-}
-
-H_RESP init_dummy_H_RESP(){
-	H_RESP dummy = (H_RESP) malloc (sizeof(H_RESP_t));
-	dummy->type = (char) HELLO_RESPONSE;
-	strcpy(dummy->respName, "Deli");
-	strcpy(dummy->respSurname, "Cevat");
-	strcpy(dummy->qryName, "Gokhan");
-	strcpy(dummy->qrySurname, "Dabak");
-	return dummy;
-}
-
-CHAT_MSG init_dummy_CHAT_MSG(){
-	CHAT_MSG dummy = (CHAT_MSG) malloc (sizeof(CHAT_MSG_t));
-	dummy->type = (char) CHAT;
-	dummy->len = (short) 23;
-	dummy->packetId = (char) 80;
-	strcpy(dummy->message, "Bu bir deneme mesajidir");
-	return dummy;
-}
-
-CHAT_MSG_ACK init_dummy_CHAT_MSG_ACK(){
-	CHAT_MSG_ACK dummy = (CHAT_MSG_ACK) malloc (sizeof(CHAT_MSG_ACK_t));
-	dummy->type = (char) CHAT_ACK;
-	dummy->packetId = (char) 8;
-	return dummy;
-}
-
-EXIT init_dummy_EXIT(){
-	EXIT dummy = (EXIT) malloc (sizeof(EXIT_t));
-	dummy->type = (char) EXITING;
-	strcpy(dummy->name, "Barack");
-	strcpy(dummy->surname, "Obama");
+	memcpy(dummy->name, name, sizeof(dummy->name));
+	memcpy(dummy->surname, surname, sizeof(dummy->surname));
 	return dummy;
 }

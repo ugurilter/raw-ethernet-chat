@@ -7,24 +7,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+#include <unistd.h>
 #include "Packets.h"
 #include "Utils.h"
-
-char *toHex(void *addr, int len){
-	char hex[] = "0123456789ABCDEF";
-	char *ptr = addr;
-	char *res = malloc(2 * len);
-
-	int i;
-	for(i = 0; i < 2 * len; i+=2){
-		char c = *((char *) ptr);
-		res[i] = hex[c / 16];
-		res[i+1] = hex[c % 16];
-		ptr++;
-	}
-
-	return res;
-}
 
 void *toStruct(char *addr){
 	void *result;
@@ -32,6 +18,7 @@ void *toStruct(char *addr){
 
 	if(type == QUERY_BROADCAST){
 		DQB new = (DQB) malloc(sizeof(DQB_t));
+		memset(new, 0, sizeof(DQB_t));
 		new->type = (char) QUERY_BROADCAST;
 		strcpy(new->reqName, addr + sizeof(new->type));
 		strcpy(new->reqSurname, addr + sizeof(new->type) + sizeof(new->reqName));
@@ -39,6 +26,7 @@ void *toStruct(char *addr){
 	}
 	else if(type == QUERY_UNICAST){
 		DQU new = (DQU) malloc(sizeof(DQU_t));
+		memset(new, 0, sizeof(DQU_t));
 		new->type = (char) QUERY_UNICAST;
 		strcpy(new->reqName, addr + sizeof(new->type));
 		strcpy(new->reqSurname, addr + sizeof(new->type) + sizeof(new->reqName));
@@ -48,6 +36,7 @@ void *toStruct(char *addr){
 	}
 	else if(type == HELLO_RESPONSE){
 		H_RESP new = (H_RESP) malloc(sizeof(H_RESP_t));
+		memset(new, 0, sizeof(H_RESP_t));
 		new->type = (char) HELLO_RESPONSE;
 		strcpy(new->respName, addr + sizeof(new->type));
 		strcpy(new->respSurname, addr + sizeof(new->type) + sizeof(new->respName));
@@ -57,6 +46,7 @@ void *toStruct(char *addr){
 	}
 	else if(type == CHAT){
 		CHAT_MSG new = (CHAT_MSG) malloc(sizeof(CHAT_MSG_t));
+		memset(new, 0, sizeof(CHAT_MSG_t));
 		new->type = (char) CHAT;
 		new->len = (addr[2] << 8) | addr[1];
 		new->packetId = addr[3];
@@ -65,12 +55,14 @@ void *toStruct(char *addr){
 	}
 	else if(type == CHAT_ACK){
 		CHAT_MSG_ACK new = (CHAT_MSG_ACK) malloc(sizeof(CHAT_MSG_ACK_t));
+		memset(new, 0, sizeof(CHAT_MSG_ACK_t));
 		new->type = (char) CHAT_ACK;
 		new->packetId = addr[1];
 		result = new;
 	}
 	else if(type == EXITING){
 		EXIT new = (EXIT) malloc(sizeof(EXIT_t));
+		memset(new, 0, sizeof(EXIT_t));
 		new->type = (char) EXITING;
 		strcpy(new->name, addr + sizeof(new->type));
 		strcpy(new->surname, addr + sizeof(new->type) + sizeof(new->name));
@@ -82,7 +74,7 @@ void *toStruct(char *addr){
 	return result;
 }
 
-void sendPacket(char *destMac, char *interface, int bufSize, char *packet){
+void sendPacket(u_int8_t *destMac, char *interface, int bufSize, char *packet){
 	int sockfd;
 
 	struct ifreq if_idx;		/* Socket ioctl için kullanılan iface request structure'ı */
@@ -120,12 +112,8 @@ void sendPacket(char *destMac, char *interface, int bufSize, char *packet){
 	eh->ether_shost[3] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[3];
 	eh->ether_shost[4] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4];
 	eh->ether_shost[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
-	eh->ether_dhost[0] = destMac[0];
-	eh->ether_dhost[1] = destMac[1];
-	eh->ether_dhost[2] = destMac[2];
-	eh->ether_dhost[3] = destMac[3];
-	eh->ether_dhost[4] = destMac[4];
-	eh->ether_dhost[5] = destMac[5];
+	memcpy(eh->ether_dhost, destMac, 6);
+
 	/* Ethertype field */
 	eh->ether_type = htons(0x1234);
 	tx_len += sizeof(struct ether_header);
@@ -141,43 +129,189 @@ void sendPacket(char *destMac, char *interface, int bufSize, char *packet){
 	/* Address length*/
 	socket_address.sll_halen = ETH_ALEN;		/* Octets in one ethernet addr	 */
 	/* Destination MAC */
-	socket_address.sll_addr[0] = destMac[0];
-	socket_address.sll_addr[1] = destMac[1];
-	socket_address.sll_addr[2] = destMac[2];
-	socket_address.sll_addr[3] = destMac[3];
-	socket_address.sll_addr[4] = destMac[4];
-	socket_address.sll_addr[5] = destMac[5];
+	memcpy(socket_address.sll_addr, destMac, 6);
 
 	/* Send packet */
 	if (sendto(sockfd, sendbuf, tx_len, 0, (struct sockaddr*)&socket_address, sizeof(struct sockaddr_ll)) < 0)
 		printf("Send failed\n");
 }
 
+void *startReceiver()
+{
+	u_int8_t MY_MAC[6] = {0x54, 0xEE, 0x75, 0xAD, 0x74, 0xBB};
+	u_int8_t BCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	char sender[INET6_ADDRSTRLEN];
+	int sockfd;
+	int sockopt;
+	ssize_t numbytes;
+	struct ifreq ifopts;	/* set promiscuous mode */
+	struct ifreq if_ip;		/* get ip addr */
+	struct sockaddr_storage their_addr;
+	uint8_t buf[BUF_SIZ];
+	char ifName[IFNAMSIZ];
+
+	/* Get interface name */
+	strcpy(ifName, DEFAULT_IFACE);
+
+	/* Header structures */
+	struct ether_header *eh = (struct ether_header *) buf;
+
+	memset(&if_ip, 0, sizeof(struct ifreq));
+
+	/* Open PF_PACKET socket, listening for EtherType ETHER_TYPE */
+	if ((sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETHER_TYPE))) == -1) {
+		perror("listener: socket");
+	}
+
+	/* Set interface to promiscuous mode - do we need to do this every time? */
+	strncpy(ifopts.ifr_name, ifName, IFNAMSIZ-1);
+	ioctl(sockfd, SIOCGIFFLAGS, &ifopts);
+	ifopts.ifr_flags |= IFF_PROMISC;
+	ioctl(sockfd, SIOCSIFFLAGS, &ifopts);
+	/* Allow the socket to be reused - incase connection is closed prematurely */
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &sockopt, sizeof sockopt) == -1) {
+		perror("setsockopt");
+		close(sockfd);
+		exit(EXIT_FAILURE);
+	}
+	/* Bind to device */
+	if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE, ifName, IFNAMSIZ-1) == -1)	{
+		perror("SO_BINDTODEVICE");
+		close(sockfd);
+		exit(EXIT_FAILURE);
+	}
+
+repeat:
+	//printf("listener: Waiting to recvfrom...\n");
+	memset(buf, 0, 1024);
+	numbytes = recvfrom(sockfd, buf, BUF_SIZ, 0, NULL, NULL);
+	//printf("listener: got packet %lu bytes\n", numbytes);
+
+	/* Check the packet is for me */
+	if (!(macCompare(eh->ether_dhost, MY_MAC) || macCompare(eh->ether_dhost, BCAST_MAC))) goto done;
+
+	/* Get source IP */
+	inet_ntop(AF_INET, &((struct sockaddr_in*)&their_addr)->sin_addr, sender, sizeof sender);
+
+	/* Look up my device IP addr if possible */
+	strncpy(if_ip.ifr_name, ifName, IFNAMSIZ-1);
+	if (ioctl(sockfd, SIOCGIFADDR, &if_ip) >= 0) { /* if we can't check then don't */
+//		printf("Source IP: %s\n My IP: %s\n", sender,
+//				inet_ntoa(((struct sockaddr_in *)&if_ip.ifr_addr)->sin_addr));
+		/* ignore if I sent it */
+		if (strcmp(sender, inet_ntoa(((struct sockaddr_in *)&if_ip.ifr_addr)->sin_addr)) == 0)	{
+			printf("but I sent it :(\n");
+			goto done;
+		}
+	}
+
+	/* UDP payload length */
+
+	/* Print packet */
+	char *xx = malloc(numbytes-19);
+	memset(xx, 0, numbytes-19);
+	u_int8_t *targetAddr = malloc(6);
+	memset(targetAddr, 0, 6);
+	memcpy(targetAddr, &buf[6], 6);
+	memcpy(xx, &buf[14], numbytes-19);
+	char type = (char) buf[14];
+	if(type == QUERY_BROADCAST){
+		DQB myDQB = (DQB) toStruct(xx);
+//		printf("\nDQB - [%d][%s][%s]", myDQB->type, myDQB->reqName, myDQB->reqSurname);
+		fflush(stdout);
+		char name[10] = "ugur";
+		char surname[10] = "ilter";
+		char *response = (char *) createH_RESP(name, surname, myDQB->reqName, myDQB->reqSurname);
+		memcpy(targetAddr, &buf[6], 6);
+		sendPacket(BCAST_MAC, DEFAULT_IFACE, 1024, response);
+		free(myDQB);
+		free(response);
+	}
+	else if(type == QUERY_UNICAST){
+		DQU myDQU = (DQU) toStruct(xx);
+//		printf("\nDQU - [%d][%s][%s][%s][%s]", myDQU->type, myDQU->reqName, myDQU->reqSurname, myDQU->targetName, myDQU->targetSurname);
+		fflush(stdout);
+		char name[10] = "ugur";
+		char surname[10] = "ilter";
+		char *response = (char *) createH_RESP(name, surname, myDQU->reqName, myDQU->reqSurname);
+		sendPacket(BCAST_MAC, DEFAULT_IFACE, 1024, response);
+		free(myDQU);
+		free(response);
+	}
+	else if(type == HELLO_RESPONSE){
+		H_RESP myH_RESP = (H_RESP) toStruct(xx);
+//		printf("\nH_RESP - [%d][%s][%s][%s][%s]", myH_RESP->type, myH_RESP->respName, myH_RESP->respSurname, myH_RESP->qryName, myH_RESP->qrySurname);
+
+		saveMac(targetAddr, myH_RESP->respName, myH_RESP->respSurname);
+
+		fflush(stdout);
+		free(myH_RESP);
+	}
+	else if(type == CHAT){
+		CHAT_MSG myCHAT_MSG = (CHAT_MSG) toStruct(xx);
+		char packetId = myCHAT_MSG->packetId;
+		printf("\nIncoming MSG from %s < %s", targetAddr, myCHAT_MSG->message);
+		fflush(stdout);
+
+		char *response = (char *) createCHAT_MSG_ACK(packetId);
+		sendPacket(targetAddr, DEFAULT_IFACE, 1024, response);
+		free(myCHAT_MSG);
+		free(response);
+	}
+	else if(type == CHAT_ACK){
+		CHAT_MSG_ACK myCHAT_MSG_ACK = (CHAT_MSG_ACK) toStruct(xx);
+		printf("\nCHAT_MSG_ACK - [%d][%d]", myCHAT_MSG_ACK->type, myCHAT_MSG_ACK->packetId);
+		fflush(stdout);
+		free(myCHAT_MSG_ACK);
+	}
+	else if(type == EXITING){
+		EXIT myEXIT = (EXIT) toStruct(xx);
+		printf("\nEXIT - [%d][%s][%s]", myEXIT->type, myEXIT->name, myEXIT->surname);
+		fflush(stdout);
+		free(myEXIT);
+	}
+
+	free(xx);
+	free(targetAddr);
+
+done: goto repeat;
+	close(sockfd);
+}
+
 void sendDQB(){
 	char name[10] = "ugur";
 	char surname[10] = "ilter";
 	char *myDQB = (char *) createDQB(name, surname);
-	char destMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	sendPacket(destMac, BRIDGE_IFACE, 1024, myDQB);
+	u_int8_t destMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+	sendPacket(destMac, DEFAULT_IFACE, 1024, myDQB);
 	free(myDQB);
 }
 
-void sendDQU(char *destMac, char *targetName, char *targetSurname){
-	char *myDQU = (char *) createDQU(MY_NAME, MY_SURNAME, targetName, targetSurname);
-	sendPacket(destMac, BRIDGE_IFACE, 1024, myDQU);
+void sendDQU(u_int8_t *destMac, char *targetName, char *targetSurname){
+	char name[10] = "ugur";
+	char surname[10] = "ilter";
+	char *myDQU = (char *) createDQU(name, surname, targetName, targetSurname);
+	sendPacket(destMac, DEFAULT_IFACE, 1024, myDQU);
 	free(myDQU);
 }
 
-void sendH_RESP(char *destMac, char *targetName, char *targetSurname){
-	char *myH_RESP = (char *) createH_RESP(MY_NAME, MY_SURNAME, targetName, targetSurname);
-	sendPacket(destMac, BRIDGE_IFACE, 1024, myH_RESP);
+void sendH_RESP(u_int8_t *destMac, char *targetName, char *targetSurname){
+	char name[10] = "ugur";
+	char surname[10] = "ilter";
+	char *myH_RESP = (char *) createH_RESP(name, surname, targetName, targetSurname);
+	sendPacket(destMac, DEFAULT_IFACE, 1024, myH_RESP);
 	free(myH_RESP);
 }
 
-void sendCHAT_MSG(char *destMac, short len, char packetId, char *msg){
+void sendCHAT_MSG(u_int8_t *destMac, short len, char packetId, char *msg){
 	char *myCHAT_MSG = (char *) createCHAT_MSG(len, packetId, msg);
-	sendPacket(destMac, BRIDGE_IFACE, 1024, myCHAT_MSG);
+	sendPacket(destMac, DEFAULT_IFACE, 1024, myCHAT_MSG);
 	free(myCHAT_MSG);
+}
+
+int macCompare(u_int8_t *a, u_int8_t *b){
+	if((a[0] != b[0]) || (a[1] != b[1]) || (a[2] != b[2]) || (a[3] != b[3]) || (a[4] != b[4]) || (a[5] != b[5])) return 0;
+	return 1;
 }
 
 int typeSize(char type){
@@ -190,20 +324,36 @@ int typeSize(char type){
 	return 0;
 }
 
-void saveMac(char *targetAddr, char *name, char *surname){
-	FILE *file = fopen("maclist.txt", "w");
+void saveMac(u_int8_t *targetAddr, char *name, char *surname){
+	FILE *file = fopen("maclist.txt", "a");
+
 	if (file == NULL)
 	{
 	    printf("Error opening file!\n");
 	    exit(1);
 	}
 
-	/* print some text */
-	fprintf(file, "%s %s %s", name, surname, targetAddr);
+	u_int8_t *mac = byteToHex((u_int8_t *) targetAddr);
+	fprintf(file, "%s %s %s\n", name, surname, mac);
 
 	fclose(file);
 }
 
-//int known(char *name, char *surname){
-//
-//}
+unsigned char *byteToHex(u_int8_t *str){
+	int i;
+	u_int8_t *result = malloc(12);
+	for(i=0; i<6; i++){
+		int num = (int) str[i];
+		result[2*i] = (u_int8_t) hexToDec(num / 16);
+		result[2*i + 1] = (u_int8_t) hexToDec(num % 16);
+	}
+
+	return result;
+}
+
+char hexToDec(int num){
+	char c;
+	if(num >=0 && num <= 9) c = (char) num + 48;
+	else c = (char) num + 55;
+	return c;
+}
