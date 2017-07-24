@@ -106,12 +106,7 @@ void sendPacket(u_int8_t *destMac, char *interface, int bufSize, char *packet){
 	/* Construct the Ethernet header */
 	memset(sendbuf, 0, bufSize);
 	/* Ethernet header */
-	eh->ether_shost[0] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[0];
-	eh->ether_shost[1] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[1];
-	eh->ether_shost[2] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[2];
-	eh->ether_shost[3] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[3];
-	eh->ether_shost[4] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[4];
-	eh->ether_shost[5] = ((uint8_t *)&if_mac.ifr_hwaddr.sa_data)[5];
+	memcpy(eh->ether_shost, ((uint8_t *)&if_mac.ifr_hwaddr.sa_data), 6);
 	memcpy(eh->ether_dhost, destMac, 6);
 
 	/* Ethertype field */
@@ -208,70 +203,64 @@ repeat:
 	/* UDP payload length */
 
 	/* Print packet */
-	char *xx = malloc(numbytes-19);
-	memset(xx, 0, numbytes-19);
-	u_int8_t *targetAddr = malloc(6);
-	memset(targetAddr, 0, 6);
-	memcpy(targetAddr, &buf[6], 6);
-	memcpy(xx, &buf[14], numbytes-19);
+	char *packet = malloc(numbytes - ETH_HLEN);
+	memset(packet, 0, numbytes-ETH_HLEN);
+	u_int8_t *targetAddr = malloc(ETH_ALEN);
+	memset(targetAddr, 0, ETH_ALEN);
+	memcpy(targetAddr, &buf[ETH_ALEN], ETH_ALEN);
+	memcpy(packet, &buf[ETH_HLEN], numbytes - ETH_HLEN);
 	char type = (char) buf[14];
 	if(type == QUERY_BROADCAST){
-		DQB myDQB = (DQB) toStruct(xx);
-//		printf("\nDQB - [%d][%s][%s]", myDQB->type, myDQB->reqName, myDQB->reqSurname);
+		DQB myDQB = (DQB) toStruct(packet);
 		fflush(stdout);
-		char name[10] = "ugur";
-		char surname[10] = "ilter";
+		char name[sizeof(myDQB->reqName)] = "ugur";
+		char surname[sizeof(myDQB->reqSurname)] = "ilter";
 		char *response = (char *) createH_RESP(name, surname, myDQB->reqName, myDQB->reqSurname);
-		memcpy(targetAddr, &buf[6], 6);
+		memcpy(targetAddr, &buf[ETH_ALEN], ETH_ALEN);
 		sendPacket(BCAST_MAC, DEFAULT_IFACE, 1024, response);
 		free(myDQB);
 		free(response);
 	}
 	else if(type == QUERY_UNICAST){
-		DQU myDQU = (DQU) toStruct(xx);
-//		printf("\nDQU - [%d][%s][%s][%s][%s]", myDQU->type, myDQU->reqName, myDQU->reqSurname, myDQU->targetName, myDQU->targetSurname);
+		DQU myDQU = (DQU) toStruct(packet);
 		fflush(stdout);
-		char name[10] = "ugur";
-		char surname[10] = "ilter";
+		char name[sizeof(myDQU->reqName)] = "ugur";
+		char surname[sizeof(myDQU->reqSurname)] = "ilter";
 		char *response = (char *) createH_RESP(name, surname, myDQU->reqName, myDQU->reqSurname);
 		sendPacket(BCAST_MAC, DEFAULT_IFACE, 1024, response);
 		free(myDQU);
 		free(response);
 	}
 	else if(type == HELLO_RESPONSE){
-		H_RESP myH_RESP = (H_RESP) toStruct(xx);
-//		printf("\nH_RESP - [%d][%s][%s][%s][%s]", myH_RESP->type, myH_RESP->respName, myH_RESP->respSurname, myH_RESP->qryName, myH_RESP->qrySurname);
-
+		H_RESP myH_RESP = (H_RESP) toStruct(packet);
 		saveMac(targetAddr, myH_RESP->respName, myH_RESP->respSurname);
-
 		fflush(stdout);
 		free(myH_RESP);
 	}
 	else if(type == CHAT){
-		CHAT_MSG myCHAT_MSG = (CHAT_MSG) toStruct(xx);
+		CHAT_MSG myCHAT_MSG = (CHAT_MSG) toStruct(packet);
 		char packetId = myCHAT_MSG->packetId;
-		printf("\nIncoming MSG from %s < %s", targetAddr, myCHAT_MSG->message);
+		printf("Incoming MSG from %s < %s", targetAddr, myCHAT_MSG->message);
 		fflush(stdout);
-
 		char *response = (char *) createCHAT_MSG_ACK(packetId);
 		sendPacket(targetAddr, DEFAULT_IFACE, 1024, response);
 		free(myCHAT_MSG);
 		free(response);
 	}
 	else if(type == CHAT_ACK){
-		CHAT_MSG_ACK myCHAT_MSG_ACK = (CHAT_MSG_ACK) toStruct(xx);
-		printf("\nCHAT_MSG_ACK - [%d][%d]", myCHAT_MSG_ACK->type, myCHAT_MSG_ACK->packetId);
+		CHAT_MSG_ACK myCHAT_MSG_ACK = (CHAT_MSG_ACK) toStruct(packet);
+		printf("CHAT_MSG_ACK - [%d][%d]", myCHAT_MSG_ACK->type, myCHAT_MSG_ACK->packetId);
 		fflush(stdout);
 		free(myCHAT_MSG_ACK);
 	}
 	else if(type == EXITING){
-		EXIT myEXIT = (EXIT) toStruct(xx);
-		printf("\nEXIT - [%d][%s][%s]", myEXIT->type, myEXIT->name, myEXIT->surname);
+		EXIT myEXIT = (EXIT) toStruct(packet);
+		printf("EXIT - [%d][%s][%s]", myEXIT->type, myEXIT->name, myEXIT->surname);
 		fflush(stdout);
 		free(myEXIT);
 	}
 
-	free(xx);
+	free(packet);
 	free(targetAddr);
 
 done: goto repeat;
@@ -347,7 +336,6 @@ unsigned char *byteToHex(u_int8_t *str){
 		result[2*i] = (u_int8_t) hexToDec(num / 16);
 		result[2*i + 1] = (u_int8_t) hexToDec(num % 16);
 	}
-
 	return result;
 }
 

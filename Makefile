@@ -9,13 +9,10 @@ CFLAGS += -Wall -pthread
 
 default: all
 
-all: $(APP_TARGET) $(RECEIVE_TARGET)
+all: $(APP_TARGET)
 
 $(APP_TARGET): $(APP_SOURCES) $(APP_DEPS)
 	$(CC) $(CFLAGS) $(APP_SOURCES) $(APP_DEPS) -o $(APP_TARGET)
 
 clean:
 	rm -rf $(TARGET)
-
-
-::D:D:D:D
