@@ -19,6 +19,8 @@
 |5|CHAT_ACK|[type][pid]|[5][0]|ACK from 'X'|
 |6|EXIT|[type][name][sname]|[6][ugur][ilter]|I'm out, peace !|
 
+![alt text](https://image.ibb.co/meWXAQ/packets.png)
+
 ## Usage
 
 1. Open a terminal (CTRL + ALT + T),
